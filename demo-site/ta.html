@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ஷாப்ஈஸி — ஆன்லைன் ஸ்டோர்</title>
+  <link rel="alternate" hreflang="en" href="/index.html" />
+  <link rel="alternate" hreflang="hi" href="/hi.html" />
+  <link rel="alternate" hreflang="mr" href="/mr.html" />
+  <link rel="alternate" hreflang="ta" href="/ta.html" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f0; color: #444; }
+
+    nav {
+      background: #2a2a2a;
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      gap: 12px;
+    }
+    nav .logo { color: #fff; font-size: 20px; font-weight: bold; flex: 1; }
+    nav .nav-links { display: flex; gap: 16px; }
+    nav .nav-links a { color: #aaa; text-decoration: none; font-size: 14px; }
+    nav .cart-area { position: relative; width: 24px; height: 24px; cursor: pointer; margin-left: 8px; }
+    nav .cart-badge {
+      position: absolute; top: -4px; right: -4px;
+      background: #ef4444; color: #fff; font-size: 10px;
+      border-radius: 50%; width: 14px; height: 14px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .lang-switcher { text-align: right; padding: 6px 20px; background: #eee; font-size: 12px; }
+    .lang-switcher a { color: #555; text-decoration: none; margin-left: 10px; font-weight: 500; }
+    .lang-switcher a.active { color: #2563eb; font-weight: 700; }
+
+    .hero {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff; text-align: center; padding: 60px 20px;
+    }
+    .hero h1 { font-size: 34px; margin-bottom: 12px; }
+    .hero p { font-size: 16px; opacity: 0.95; margin-bottom: 24px; }
+    .hero .cta {
+      background: #2563eb; color: #fff; padding: 12px 28px;
+      border: none; border-radius: 6px; font-size: 16px; cursor: pointer;
+    }
+
+    .products { padding: 40px 20px; max-width: 1100px; margin: 0 auto; }
+    .products h2 { margin-bottom: 24px; color: #333; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .product-card {
+      background: #fff; border-radius: 8px; overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .product-card .info { padding: 16px; }
+    .product-card .name { font-size: 15px; font-weight: 600; color: #222; margin-bottom: 6px; }
+    .product-card .price { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 10px; }
+    
+    .overflow-btn {
+      width: 90px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: #2563eb;
+      color: #fff;
+      padding: 8px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .add-btn {
+      background: #e8e8e0; color: #333; border: none; padding: 8px 14px;
+      border-radius: 4px; font-size: 13px; cursor: pointer; width: 100%;
+    }
+
+    footer { background: #222; color: #aaa; text-align: center; padding: 20px; font-size: 12px; margin-top: 60px; }
+  </style>
+</head>
+<body>
+
+  <div class="lang-switcher">
+    <a href="/index.html">English</a>
+    <a href="/hi.html">हिन्दी (Hindi)</a>
+    <a href="/mr.html">मराठी (Marathi)</a>
+    <a href="/ta.html" class="active">தமிழ் (Tamil)</a>
+  </div>
+
+  <nav>
+    <div class="logo">ஷாப்ஈஸி</div>
+    <div class="nav-links">
+      <a href="#">முகப்பு</a>
+      <a href="#">தயாரிப்புகள்</a>
+      <a href="#">எங்களை பற்றி</a>
+    </div>
+    <div class="cart-area" aria-label="ஷாப்பிங் வண்டி">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="20" height="20">
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+      </svg>
+      <div class="cart-badge">0</div>
+    </div>
+  </nav>
+
+  <div class="hero">
+    <h1>ஷாப்ஈஸி-க்கு வரவேற்கிறோம்</h1>
+    <p>சிறந்த விலையில் சிறந்த தயாரிப்புகளை கண்டறியுங்கள்</p>
+    <button class="cta">இப்போதே வாங்கவும்</button>
+  </div>
+
+  <div class="products">
+    <h2>சிறப்பு தயாரிப்புகள்</h2>
+    <div class="grid">
+      <div class="product-card">
+        <div style="background:#e0d5f0;height:180px;display:flex;align-items:center;justify-content:center;font-size:40px;">🎧</div>
+        <div class="info">
+          <div class="name">வயர்லெஸ் ஹெட்ஃபோன்கள்</div>
+          <div class="price">₹6,999</div>
+          <button class="overflow-btn">கார்ட்டில் சேர்க்க</button>
+        </div>
+      </div>
+      <div class="product-card">
+        <div style="background:#d5e8d5;height:180px;display:flex;align-items:center;justify-content:center;font-size:40px;">⌚</div>
+        <div class="info">
+          <div class="name">ஸ்மார்ட் வாட்ச்</div>
+          <div class="price">₹9,999</div>
+          <button class="add-btn">வாங்கவும்</button>
+        </div>
+      </div>
+      <div class="product-card">
+        <div style="background:#f0e8d5;height:180px;display:flex;align-items:center;justify-content:center;font-size:40px;">📱</div>
+        <div class="info">
+          <div class="name">ஃபோன் கவர்</div>
+          <div class="price">₹1,499</div>
+          <button class="add-btn">விவரங்கள் பார்க்க</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    &copy; 2026 ஷாப்ஈஸி. அனைத்து உரிமைகளும் பாதுகாக்கப்பட்டவை.
+  </footer>
+</body>
+</html>

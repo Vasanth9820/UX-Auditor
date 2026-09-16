@@ -48,6 +48,8 @@
   --sidebar-w: 250px;
   --topbar-h: 64px;
   --transition: all .25s cubic-bezier(.4,0,.2,1);
+  --font-sans: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-heading: 'Outfit', sans-serif;
 
   /* ── Badge Colors (Light) ── */
   --badge-crit-bg: rgba(239, 68, 68, 0.15);
@@ -105,7 +107,7 @@ body.dark .dashboard-page-container {
 
 /* ═══ GLOBAL BACKGROUND ═══ */
 .dashboard-page-container {
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--bg);
   color: var(--text-primary);
   height: 100vh;
@@ -836,10 +838,40 @@ body.dark .dashboard-page-container::before {
 .code-copy-btn:hover { background: var(--blue-light); border-color: var(--blue-mid); }
 
 .before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
-.ba-pane { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+.ba-pane { 
+  border-radius: var(--radius); 
+  overflow: hidden; 
+  border: 1px solid var(--border); 
+  display: flex;
+  flex-direction: column;
+  background: #0a1628;
+}
 .ba-pane-label { padding: 8px 12px; font-size: 11.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
-.ba-before .ba-pane-label { background: rgba(248,113,113,0.08); color: var(--red); }
-.ba-after .ba-pane-label { background: rgba(52,211,153,0.08); color: var(--green); }
+.ba-before .ba-pane-label { background: rgba(248,113,113,0.08); color: var(--red); border-bottom: 1px solid rgba(248,113,113,0.15); }
+.ba-after .ba-pane-label { background: rgba(52,211,153,0.08); color: var(--green); border-bottom: 1px solid rgba(52,211,153,0.15); }
+.ba-pane .code-block {
+  background: #0a1628 !important;
+  color: #e2e8f0 !important;
+  flex: 1;
+  height: 100%;
+  min-height: 100%;
+  border: none !important;
+  border-radius: 0 !important;
+}
+.ba-pane .code-copy-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.ba-pane .code-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+body.dark .code-block {
+  background: #0a1628;
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.08);
+}
 .ba-preview { height: 80px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--text-muted); background: var(--bg-elevated); }
 
 .slider-wrap { position: relative; border-radius: var(--radius); overflow: hidden; height: 120px; border: 1px solid var(--border); margin-bottom: 14px; }

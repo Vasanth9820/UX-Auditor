@@ -48,16 +48,32 @@ async function githubRequest(url, token, retries = 5) {
       return response.data;
     } catch (err) {
       const status = err.response?.status;
+      if (status === 401) {
+        throw new Error(
+          'GitHub authentication failed (401 Unauthorized): Your connected GitHub Personal Access Token is invalid or expired (Bad credentials). Please reconnect or generate a new GitHub token.'
+        );
+      }
       if (status === 429 && attempt < retries) {
         const retryAfter = parseInt(err.response?.headers?.['retry-after'] || '5', 10);
         await sleep(retryAfter * 1000);
         continue;
       }
-      if (status === 403 && err.response?.headers?.['x-ratelimit-remaining'] === '0' && attempt < retries) {
+      if (status === 403 && err.response?.headers?.['x-ratelimit-remaining'] === '0') {
         const reset = parseInt(err.response?.headers?.['x-ratelimit-reset'] || '0', 10);
-        const waitMs = Math.max((reset - Math.floor(Date.now() / 1000)) * 1000, 5000);
-        await sleep(waitMs);
-        continue;
+        const waitMs = Math.max((reset - Math.floor(Date.now() / 1000)) * 1000, 0);
+        if (waitMs <= 10000 && attempt < retries) {
+          await sleep(waitMs + 1000);
+          continue;
+        }
+        const waitMins = Math.ceil(waitMs / 60000);
+        throw new Error(
+          `GitHub API rate limit exceeded (resets in ~${waitMins} min). Please connect a valid GitHub Personal Access Token in the dashboard to increase your limit to 5,000 req/hr.`
+        );
+      }
+      if (status === 404) {
+        throw new Error(
+          'GitHub repository or resource not found (404). If this is a private repository, please ensure a valid GitHub Personal Access Token with repository read permissions is connected.'
+        );
       }
       throw err;
     }
@@ -113,8 +129,27 @@ async function fetchFileContent(owner, repo, path, token) {
 }
 
 export async function fetchRepoFiles(repoUrl, githubToken) {
-  const token = githubToken || process.env.GITHUB_TOKEN || '';
+  let token = githubToken || process.env.GITHUB_TOKEN || '';
   const { owner, repo } = parseRepoUrl(repoUrl);
+
+  // If a token is provided, verify it quickly; if expired/invalid, drop to unauthenticated
+  if (token) {
+    try {
+      await axios.get(`https://api.github.com/repos/${owner}/${repo}`, {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch (probeErr) {
+      if (probeErr.response?.status === 401) {
+        console.warn('Connected GitHub token returned 401 Unauthorized (expired or invalid). Proceeding with unauthenticated public access.');
+        token = '';
+      }
+    }
+  }
+
   const branch = await resolveBranch(owner, repo, token);
   const tree = await fetchFileTree(owner, repo, branch, token);
 

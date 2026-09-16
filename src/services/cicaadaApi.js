@@ -23,6 +23,27 @@ export async function fetchAudit(id) {
   return res.json();
 }
 
+export async function startMultilingualAudit(parentAuditId, languages) {
+  const res = await fetch(`${API_BASE}/api/audits/${parentAuditId}/multilingual`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ languages }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to start multilingual audit');
+  }
+
+  return res.json();
+}
+
+export async function fetchMultilingualAudit(parentAuditId) {
+  const res = await fetch(`${API_BASE}/api/audits/${parentAuditId}/multilingual`);
+  if (!res.ok) throw new Error('Failed to fetch multilingual audit details');
+  return res.json();
+}
+
 export function connectAuditSocket(auditId, onProgress, onComplete, onError) {
   if (!auditId) return null;
 

@@ -4,6 +4,8 @@ import PlaywrightAuditor from '../playwright/auditor.js';
 import { captureIssueScreenshots, verifyScreenshotExists } from '../playwright/issueScreenshots.js';
 import { runWcagChecks, runWcagPageChecks } from '../checks/wcag/index.js';
 import { runHeuristicChecks } from '../checks/heuristics/index.js';
+import { runMultilingualChecks } from '../checks/multilingual/languageChecks.js';
+import { TARGET_LANGUAGES } from '../multilingual/languageDetector.js';
 import AiRecommendationService from '../ai/recommendations.js';
 import { calculateScores, buildSummary } from '../scoring/index.js';
 import ReportGenerator from '../reporting/generator.js';
@@ -16,7 +18,7 @@ export class AuditOrchestrator {
     this.io = io;
   }
 
-  async startAudit(url, existingId = null) {
+  async startAudit(url, existingId = null, languageConfig = null) {
     const auditId = existingId || uuidv4();
     const normalizedUrl = this.normalizeUrl(url);
 
@@ -26,6 +28,9 @@ export class AuditOrchestrator {
         _id: auditId,
         url: normalizedUrl,
         status: 'running',
+        language: languageConfig?.lang || 'en',
+        languageLabel: languageConfig?.label || 'English',
+        parentAuditId: languageConfig?.parentAuditId || null,
         startedAt: new Date(),
         progress: { stage: 'init', percent: 0, message: 'Starting audit...' },
       });
@@ -33,27 +38,81 @@ export class AuditOrchestrator {
       await auditRepository.findByIdAndUpdate(auditId, {
         status: 'running',
         startedAt: new Date(),
+        language: languageConfig?.lang || report.language || 'en',
+        languageLabel: languageConfig?.label || report.languageLabel || 'English',
+        parentAuditId: languageConfig?.parentAuditId || report.parentAuditId || null,
       });
     }
 
-    this.emitProgress(auditId, 'init', 0, 'Audit queued...');
-    this.runPipeline(auditId, normalizedUrl).catch(async (err) => {
+    this.emitProgress(auditId, 'init', 0, `Audit queued for ${languageConfig?.label || 'English'}...`);
+    this.runPipeline(auditId, normalizedUrl, languageConfig).catch(async (err) => {
       console.error(`Audit ${auditId} failed:`, err);
       this.io.to(auditId).emit('audit:error', { error: err.message || 'Audit failed' });
       await auditRepository.findByIdAndUpdate(auditId, { status: 'failed' }).catch(() => {});
     });
 
-    return { auditId, url: normalizedUrl };
+    return { auditId, url: normalizedUrl, language: languageConfig?.lang || 'en' };
   }
 
-  async runPipeline(auditId, url) {
+  /**
+   * Start audits for multiple languages linked to a parent English audit.
+   */
+  async startMultilingualAudits(parentAuditId, selectedLanguages) {
+    const parentReport = await auditRepository.findById(parentAuditId);
+    if (!parentReport) {
+      throw new Error(`Parent audit ${parentAuditId} not found`);
+    }
+
+    const detected = parentReport.pageData?.detectedLanguages || parentReport.detectedLanguages || [];
+    const started = {};
+
+    for (const langCode of selectedLanguages) {
+      // Find matching detection config or fallback to target language default
+      const matched = detected.find(d => d.lang === langCode);
+      const targetLangDef = TARGET_LANGUAGES.find(t => t.lang === langCode);
+
+      if (!matched) {
+        throw new Error(`Language ${langCode} was not detected on the audited website`);
+      }
+
+      const languageConfig = {
+        lang: langCode,
+        label: matched?.label || targetLangDef?.label || langCode.toUpperCase(),
+        nativeName: matched?.nativeName || targetLangDef?.nativeName || langCode,
+        switchMethod: matched.switchMethod,
+        targetUrl: matched.targetUrl,
+        selector: matched?.selector,
+        value: matched?.value,
+        parentAuditId,
+      };
+
+      const childAuditId = `${parentAuditId}-${langCode}`;
+      await this.startAudit(parentReport.url, childAuditId, languageConfig);
+
+      started[langCode] = {
+        auditId: childAuditId,
+        label: languageConfig.label,
+        nativeName: languageConfig.nativeName,
+      };
+    }
+
+    // Record children in parent's multilingualAudits map
+    const existingChildren = parentReport.multilingualAudits || {};
+    await auditRepository.findByIdAndUpdate(parentAuditId, {
+      multilingualAudits: { ...existingChildren, ...started },
+    });
+
+    return { parentAuditId, started };
+  }
+
+  async runPipeline(auditId, url, languageConfig = null) {
     const emit = (stage, percent, message) => this.emitProgress(auditId, stage, percent, message);
 
     let session = null;
 
     try {
       const playwright = new PlaywrightAuditor(auditId, (p) => emit(p.stage, p.percent, p.message));
-      session = await playwright.run(url);
+      session = await playwright.run(url, languageConfig);
       const { page, pageData, assets, html } = session;
 
       emit('checks', 52, 'Running WCAG accessibility checks...');
@@ -63,7 +122,13 @@ export class AuditOrchestrator {
       emit('checks', 58, 'Running Nielsen UX heuristic checks...');
       const heuristicIssues = runHeuristicChecks(pageData, url);
 
-      const rawIssues = [...wcagStatic, ...wcagLive, ...heuristicIssues].map((issue, i) => ({
+      let multilingualIssues = [];
+      if (languageConfig?.lang && languageConfig.lang !== 'en') {
+        emit('checks', 64, `Running ${languageConfig.label || languageConfig.lang} localization and UX checks...`);
+        multilingualIssues = await runMultilingualChecks(page, pageData, html, languageConfig.lang);
+      }
+
+      const rawIssues = [...wcagStatic, ...wcagLive, ...heuristicIssues, ...multilingualIssues].map((issue, i) => ({
         ...issue,
         id: issue.id || `issue-${i}`,
       }));
@@ -81,6 +146,8 @@ export class AuditOrchestrator {
       let enrichedIssues = await ai.enrichIssues(issuesWithScreenshots, {
         url,
         title: pageData.title,
+        language: languageConfig?.lang || 'en',
+        languageLabel: languageConfig?.label || 'English',
       });
 
       // Ensure every issue retains a valid screenshot path
@@ -124,11 +191,17 @@ export class AuditOrchestrator {
       const completedAt = new Date();
       const startedAt = (await auditRepository.findById(auditId))?.startedAt || completedAt;
 
+      const detectedLanguages = pageData.detectedLanguages || [];
+
       await auditRepository.findByIdAndUpdate(auditId, {
         status: 'completed',
         completedAt,
         duration: completedAt - startedAt,
         scores,
+        language: languageConfig?.lang || 'en',
+        languageLabel: languageConfig?.label || 'English',
+        parentAuditId: languageConfig?.parentAuditId || null,
+        detectedLanguages,
         pageData: {
           title: pageData.title,
           language: pageData.language,
@@ -139,6 +212,7 @@ export class AuditOrchestrator {
           forms: pageData.forms,
           htmlLength: pageData.htmlLength,
           cssRulesCount: pageData.cssRulesCount,
+          detectedLanguages,
         },
         assets: {
           ...assets,
@@ -150,8 +224,39 @@ export class AuditOrchestrator {
         progress: { stage: 'complete', percent: 100, message: 'Audit complete!' },
       });
 
+      // If child audit, update the parent audit record
+      if (languageConfig?.parentAuditId) {
+        const parent = await auditRepository.findById(languageConfig.parentAuditId);
+        if (parent) {
+          const existing = parent.multilingualAudits || {};
+          existing[languageConfig.lang] = {
+            auditId,
+            label: languageConfig.label,
+            nativeName: languageConfig.nativeName,
+            status: 'completed',
+            score: scores.overall,
+            grade: scores.grade,
+            totalIssues: enrichedIssues.length,
+          };
+          await auditRepository.findByIdAndUpdate(languageConfig.parentAuditId, {
+            multilingualAudits: existing,
+          });
+          this.io?.to(languageConfig.parentAuditId).emit('audit:multilingual_updated', {
+            parentAuditId: languageConfig.parentAuditId,
+            multilingualAudits: existing,
+          });
+        }
+      }
+
       emit('complete', 100, 'Audit complete!');
-      this.io?.to(auditId).emit('audit:complete', { auditId });
+      this.io?.to(auditId).emit('audit:complete', { auditId, language: languageConfig?.lang || 'en' });
+
+      if (detectedLanguages.length > 0) {
+        this.io?.to(auditId).emit('audit:languages_detected', {
+          auditId,
+          detectedLanguages,
+        });
+      }
     } catch (error) {
       if (session?.finalize) await session.finalize().catch(() => {});
       await auditRepository.findByIdAndUpdate(auditId, {

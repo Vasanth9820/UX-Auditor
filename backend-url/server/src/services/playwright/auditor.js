@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { chromium, devices } from 'playwright';
 import { config } from '../../config/index.js';
+import { detectSupportedLanguages } from '../multilingual/languageDetector.js';
 
 const DESKTOP_VIEWPORT = { width: 1440, height: 900 };
 const MOBILE_DEVICE = devices['iPhone 13'];
@@ -24,7 +25,7 @@ export class PlaywrightAuditor {
     this.onProgress({ stage, percent, message });
   }
 
-  async run(url) {
+  async run(url, languageConfig = null) {
     await this.ensureOutputDir();
     this.emit('browser', 5, 'Launching headless browser...');
 
@@ -42,10 +43,33 @@ export class PlaywrightAuditor {
 
     try {
       this.emit('navigation', 10, 'Navigating to target URL...');
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      let targetUrl = url;
+      if (languageConfig?.switchMethod === 'url' && languageConfig?.targetUrl) {
+        targetUrl = languageConfig.targetUrl;
+      }
+
+      await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForTimeout(2000);
 
-      const capture = await this.captureFromPage(page, url);
+      // Perform native language switch if using select or click
+      if (languageConfig && languageConfig.switchMethod !== 'url') {
+        this.emit('navigation', 15, `Switching site to ${languageConfig.label || languageConfig.lang}...`);
+        if (languageConfig.switchMethod === 'select' && languageConfig.selector) {
+          await page.selectOption(languageConfig.selector, languageConfig.value);
+          await page.waitForTimeout(2000);
+        } else if (languageConfig.switchMethod === 'click' && languageConfig.selector) {
+          await page.click(languageConfig.selector);
+          await page.waitForTimeout(2000);
+        } else {
+          throw new Error(`No usable switch control was detected for ${languageConfig.label || languageConfig.lang}`);
+        }
+      }
+
+      const capture = await this.captureFromPage(page, targetUrl, languageConfig);
+
+      // Detect available languages on the page
+      const detectedLanguages = await detectSupportedLanguages(page);
+      capture.pageData.detectedLanguages = detectedLanguages;
 
       const video = page.video();
       let videoPath = null;
@@ -80,7 +104,7 @@ export class PlaywrightAuditor {
   }
 
   /** Capture page data/assets from an already-open page (keeps browser alive). */
-  async captureFromPage(page, url) {
+  async captureFromPage(page, url, languageConfig = null) {
     this.emit('capture', 20, 'Extracting page structure and metadata...');
     const pageData = await this.extractPageData(page);
 
@@ -97,7 +121,7 @@ export class PlaywrightAuditor {
     await fs.writeFile(htmlPath, html, 'utf-8');
 
     this.emit('mobile', 45, 'Capturing mobile viewport...');
-    const mobileResult = await this.captureMobile(url);
+    const mobileResult = await this.captureMobile(url, languageConfig);
 
     this.emit('capture', 50, 'Page capture complete.');
 
@@ -115,7 +139,7 @@ export class PlaywrightAuditor {
     };
   }
 
-  async captureMobile(url) {
+  async captureMobile(url, languageConfig = null) {
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({
       ...MOBILE_DEVICE,
@@ -124,8 +148,27 @@ export class PlaywrightAuditor {
     const page = await context.newPage();
 
     try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+      let targetUrl = url;
+      if (languageConfig?.switchMethod === 'url' && languageConfig?.targetUrl) {
+        targetUrl = languageConfig.targetUrl;
+      }
+      await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 60000 }).catch(async () => {
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      });
       await page.waitForTimeout(1000);
+
+      if (languageConfig && languageConfig.switchMethod !== 'url') {
+        if (languageConfig.switchMethod === 'select' && languageConfig.selector) {
+          await page.selectOption(languageConfig.selector, languageConfig.value);
+          await page.waitForTimeout(1500);
+        } else if (languageConfig.switchMethod === 'click' && languageConfig.selector) {
+          await page.click(languageConfig.selector);
+          await page.waitForTimeout(1500);
+        } else {
+          throw new Error(`No usable mobile switch control was detected for ${languageConfig.label || languageConfig.lang}`);
+        }
+      }
+
       const screenshotPath = path.join(this.outputDir, 'mobile.png');
       await page.screenshot({ path: screenshotPath, fullPage: true });
       const pageData = await this.extractPageData(page);

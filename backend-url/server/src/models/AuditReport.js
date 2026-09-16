@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const issueSchema = new mongoose.Schema(
   {
     id: String,
-    category: { type: String, enum: ['wcag', 'heuristic'] },
+    category: { type: String },
     rule: String,
     title: String,
     description: String,
@@ -32,6 +32,11 @@ const auditReportSchema = new mongoose.Schema(
       enum: ['pending', 'running', 'completed', 'failed'],
       default: 'pending',
     },
+    language: { type: String, default: 'en' },
+    languageLabel: { type: String, default: 'English' },
+    parentAuditId: { type: String, default: null, index: true },
+    detectedLanguages: [mongoose.Schema.Types.Mixed],
+    multilingualAudits: mongoose.Schema.Types.Mixed,
     error: String,
     startedAt: Date,
     completedAt: Date,

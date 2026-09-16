@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { startAudit, connectAuditSocket } from '../services/cicaadaApi';
+import { startAudit, fetchAudit, connectAuditSocket } from '../services/cicaadaApi';
+import MultilingualPromptModal from './MultilingualPromptModal';
 
 const AuditModal = ({ isOpen, targetUrl, onClose }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isClosing, setIsClosing] = useState(false);
   const [logs, setLogs] = useState([]);
   const [auditId, setAuditId] = useState(null);
+  const [detectedLanguages, setDetectedLanguages] = useState([]);
+  const [showMultilingualPrompt, setShowMultilingualPrompt] = useState(false);
   const socketRef = useRef(null);
 
   useEffect(() => {
@@ -16,6 +19,8 @@ const AuditModal = ({ isOpen, targetUrl, onClose }) => {
       setIsClosing(false);
       setLogs(['> Initializing engine...']);
       setAuditId(null);
+      setDetectedLanguages([]);
+      setShowMultilingualPrompt(false);
 
       const runAudit = async () => {
         try {
@@ -49,12 +54,11 @@ const AuditModal = ({ isOpen, targetUrl, onClose }) => {
       auditId,
       (progress) => {
         // progress is { step: number, message: string, percent: number }
-        // Update current step based on progress.step
         const stepMap = {
           extract: 1,
           analyze: 2,
           simulate: 3,
-          report: 5, // We map this to 5
+          report: 5,
           complete: 6
         };
         const mappedStep = stepMap[progress.step] || 0;
@@ -64,11 +68,26 @@ const AuditModal = ({ isOpen, targetUrl, onClose }) => {
         
         setLogs(prev => [...prev, '> ' + progress.message]);
       },
-      () => {
+      async () => {
         setCurrentStep(6);
         setLogs(prev => [...prev, '> Audit complete. Preparing report...']);
         
-        // Wait 1.5s then redirect to dashboard
+        try {
+          const report = await fetchAudit(auditId);
+          const detected = (report.detectedLanguages || report.pageData?.detectedLanguages || [])
+            .filter(d => d.lang && d.lang !== 'en');
+
+          if (detected.length > 0) {
+            setDetectedLanguages(detected);
+            setShowMultilingualPrompt(true);
+            setLogs(prev => [...prev, `> Detected Indic languages: ${detected.map(d => d.label).join(', ')}`]);
+            return;
+          }
+        } catch (e) {
+          console.warn('Could not check detected languages:', e);
+        }
+
+        // Default redirect to dashboard
         setTimeout(() => {
           window.location.href = `/?page=dashboard&auditId=${auditId}`;
         }, 1500);
@@ -178,6 +197,20 @@ const AuditModal = ({ isOpen, targetUrl, onClose }) => {
           <div style={{ display: 'inline-block', width: '8px', height: '14px', background: '#10b981', marginTop: '4px', opacity: currentStep >= 6 ? 0 : 1 }}></div>
         </div>
       </div>
+
+      <MultilingualPromptModal
+        isOpen={showMultilingualPrompt}
+        parentAuditId={auditId}
+        detectedLanguages={detectedLanguages}
+        onProceed={() => {
+          setShowMultilingualPrompt(false);
+          window.location.href = `/?page=dashboard&auditId=${auditId}&multilingual=true`;
+        }}
+        onSkip={() => {
+          setShowMultilingualPrompt(false);
+          window.location.href = `/?page=dashboard&auditId=${auditId}`;
+        }}
+      />
     </div>
   );
 };

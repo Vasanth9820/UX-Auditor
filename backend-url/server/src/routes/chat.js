@@ -19,7 +19,7 @@ router.post('/', async (req, res) => {
         Authorization: `Bearer ${config.groqApiKey}`,
       },
       body: JSON.stringify({
-        model: config.groqModel || 'llama-3.3-70b-versatile',
+        model: config.groqModel || 'groq/compound-mini',
         messages: [
           { role: 'system', content: 'You are a helpful UX and accessibility auditor AI assistant. Keep your responses concise, helpful, and formatted in markdown.' },
           ...messages

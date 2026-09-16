@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { createClerkClient, verifyToken } from '@clerk/backend';
+import axios from 'axios';
 import GithubToken from '../models/GithubToken.js';
-import { encryptToken } from '../utils/encryption.js';
+import { encryptToken, decryptToken } from '../utils/encryption.js';
 
 const router = Router();
 const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
@@ -30,8 +31,29 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(400).json({ success: false, error: 'GitHub token is required' });
   }
 
+  const trimmedToken = githubToken.trim();
+
+  // Validate the token with GitHub before storing
   try {
-    const encryptedToken = encryptToken(githubToken);
+    await axios.get('https://api.github.com/user', {
+      headers: {
+        Authorization: `Bearer ${trimmedToken}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'UX-Auditor',
+      },
+      timeout: 8000,
+    });
+  } catch (err) {
+    if (err.response?.status === 401) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid GitHub token: GitHub rejected the token (401 Bad credentials). Please verify your token is active and not expired.',
+      });
+    }
+  }
+
+  try {
+    const encryptedToken = encryptToken(trimmedToken);
     
     // Update if exists, otherwise create
     await GithubToken.findOneAndUpdate(
@@ -51,7 +73,30 @@ router.post('/', requireAuth, async (req, res) => {
 router.get('/status', requireAuth, async (req, res) => {
   try {
     const tokenDoc = await GithubToken.findOne({ userId: req.userId });
-    res.json({ success: true, isConnected: !!tokenDoc });
+    if (!tokenDoc) {
+      return res.json({ success: true, isConnected: false });
+    }
+
+    // Verify if stored token is still active and valid
+    try {
+      const decrypted = decryptToken(tokenDoc.encryptedToken);
+      await axios.get('https://api.github.com/user', {
+        headers: {
+          Authorization: `Bearer ${decrypted}`,
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'UX-Auditor',
+        },
+        timeout: 5000,
+      });
+      res.json({ success: true, isConnected: true });
+    } catch (ghErr) {
+      if (ghErr.response?.status === 401) {
+        console.warn(`Stored GitHub token for user ${req.userId} is expired or invalid. Auto-removing from database.`);
+        await GithubToken.findOneAndDelete({ userId: req.userId });
+        return res.json({ success: true, isConnected: false, expired: true });
+      }
+      res.json({ success: true, isConnected: true });
+    }
   } catch (err) {
     console.error('Failed to check token status:', err.message);
     res.status(500).json({ success: false, error: 'Failed to check connection status' });

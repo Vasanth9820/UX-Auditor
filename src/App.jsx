@@ -59,30 +59,47 @@ function App() {
       <div className="bg-glow bg-glow--2"></div>
       <div className="bg-glow bg-glow--3"></div>
 
-      <SignedIn>
-        {window.location.pathname.startsWith('/dashboard') || window.location.search.includes('page=dashboard') ? (
-          <Dashboard />
-        ) : (
+      {(() => {
+        const isDashboardRoute = 
+          window.location.pathname.startsWith('/dashboard') || 
+          window.location.search.includes('page=') || 
+          window.location.search.includes('auditId=') || 
+          window.location.search.includes('repo=');
+
+        return (
           <>
-            <Navbar onStartAudit={() => handleStartAudit()} />
-            <Hero onStartAudit={handleStartAudit} />
-            <Features />
-            <Engines />
-            <WorkflowJourneys />
-            <BottomSections />
+            <SignedIn>
+              {isDashboardRoute ? (
+                <Dashboard />
+              ) : (
+                <>
+                  <Navbar onStartAudit={() => handleStartAudit()} />
+                  <Hero onStartAudit={handleStartAudit} />
+                  <Features />
+                  <Engines />
+                  <WorkflowJourneys />
+                  <BottomSections />
+                </>
+              )}
+            </SignedIn>
+            
+            <SignedOut>
+              {isDashboardRoute ? (
+                <Dashboard />
+              ) : (
+                <>
+                  <Navbar onStartAudit={() => handleStartAudit()} />
+                  <Hero onStartAudit={handleStartAudit} />
+                  <Features />
+                  <Engines />
+                  <WorkflowJourneys />
+                  <BottomSections />
+                </>
+              )}
+            </SignedOut>
           </>
-        )}
-      </SignedIn>
-      
-      <SignedOut>
-        <Navbar onStartAudit={() => handleStartAudit()} />
-        <Hero onStartAudit={handleStartAudit} />
-        
-        <Features />
-        <Engines />
-        <WorkflowJourneys />
-        <BottomSections />
-      </SignedOut>
+        );
+      })()}
       
       <AuditModal 
         isOpen={isAuditModalOpen} 

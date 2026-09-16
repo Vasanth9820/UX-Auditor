@@ -13,6 +13,10 @@ export default defineConfig({
       '/api/audits': {
         target: 'http://localhost:3002',
         changeOrigin: true
+      },
+      '/outputs': {
+        target: 'http://localhost:3002',
+        changeOrigin: true
       }
     }
   }
